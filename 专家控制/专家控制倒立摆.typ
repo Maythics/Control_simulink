@@ -17,7 +17,7 @@
 
 #set text(size: 12pt)
 
-#text(red)[*如有问题，请访问*]
+#text(red.darken(10%))[如有疑问，请访问 https://github.com/Maythics/Control_simulink.git]
 
 = 模型建立
 
