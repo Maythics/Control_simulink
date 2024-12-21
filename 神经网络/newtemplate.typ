@@ -172,7 +172,7 @@ column: 2
 )
 
   show: rest => columns(column, rest)
-  set heading(numbering: "1.1")
+  set heading(numbering: none)
   set quote(block: true)
   show: rules
   show thm-selector("thm-group"): box.with(inset: 0.8em)

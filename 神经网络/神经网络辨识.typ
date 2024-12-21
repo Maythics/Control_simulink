@@ -185,7 +185,7 @@ label_data = [q1_next;q2_next];
 #t 如下图，上方为真实系统，下方安装神经网络虚拟系统，该神经网络（蓝色方块）接受一个六维输入$mat(q_1(k),q_2(k), q_1(k-1),q_2(k-1),tau_1(k),tau_2(k))^top$，输出一个预测的$mat(hat(q_1)(k+1),hat(q_2)(k+1))^top$
 #purple_theorem("Simulink")[#image("./images/simulink_NN_model.png")]
 
-#t 更改噪音的生成种子，并且修改输入形状如下：
+#t 更改噪音的生成种子，并且修改输入形状如下（图中的1均指的是$q_1$，2均指的是$q_2$）：
 
 #figure(
   table(
@@ -242,7 +242,78 @@ label_data = [q1_next;q2_next];
     caption: [并联结构网络拟合图]
 )
 
-可见，这个系统的非线性性非常强，随着几轮迭代，输出越差越大。这类似于蝴蝶效应。
+#t 可见，这个系统的非线性性非常强，随着几轮迭代，输出越差越大。这类似于蝴蝶效应。
+
+= 串并联网络调试分析
+
+#t 以下，企图分析网络结构以及训练数据对结果的影响，因此做了这些测试，并且打印出误差大小供辅助判断。在测试时，打开了在$dot.double(q_1),dot.double(q_2)$处的高频白噪音，这样的话，能从误差的频率看出，误差究竟来自于哪里：如果误差频率很高，那说明网络基本预测准了，只是收到这些未知噪音的扰动；如果误差很大而且频率慢，则说明网络预测的还不够准，偏差来源于拟合不佳。
+
+=== 原网络预测阶跃/三角输入响应的误差
+
+#figure(
+  table(
+    stroke: oklab(80.74%, 0.118, -0.087, 48.6%)+0.1em,
+    columns: 3,
+    gutter: 0em,
+    inset: 2pt,
+    align: center+horizon,
+    [输入],[响应],[误差],
+    [#image("./images/step_input.png")],[#image("./images/step_result.png")],[#image("./images/step_err.png")],
+    [#image("./images/step_input2.png")],[#image("./images/step_result2.png")],[#image("./images/step_err2.png")],
+    [#image("./images/sin_input.png")],[#image("./images/sin_result.png")],[#image("./images/sin_err.png")],
+    [#image("./images/sin_input2.png")],[#image("./images/sin_result2.png")],[#image("./images/sin_err2.png")],
+
+    ),
+    caption: [串并联结构网络拟合效果]
+)<table-predict>
+
+#t 可见，实际上误差的量级在$10^(-4)$，即，相对误差在0.1%内，说明刚才训练出来的网络的确有预测效果。此外，从上方的误差err图发现，误差的频率远远高于两个广义坐标的变化频率，这可以说明这个误差类似于随机误差而非系统性的误差。分析上图知，在初始时误差很大，是因为神经网络不清楚初始情况，而在阶跃响应的第二秒有较大的误差，正是因为阶跃的突变造成瞬间没跟上导致的预测失败。
+
+== *减少训练数据的个数重新测试*
+
+#t 减少到使用白噪声输入产生的1000以及100个数据，重新训练两个新网络，重新用阶跃输入测试（见 @table-predict 表格的第一行的那个阶跃输入），看看能否跟踪。
+
+#figure(
+  table(
+    stroke: oklab(80.74%, 0.118, -0.087, 48.6%)+0.1em,
+    columns: 3,
+    gutter: 0em,
+    inset: 2pt,
+    align: center+horizon,
+    [样本数],[响应],[误差],
+    [10000],[#image("./images/step_result.png")],[#image("./images/step_err.png")],
+    [1000],[#image("./images/step_less_result.png")],[#image("./images/step_less_err.png")],
+    [100],[#image("./images/step_small_result.png")],[#image("./images/step_small_err.png")],
+
+    ),
+    caption: [串并联结构网络（不同训练样本数）拟合效果]
+)
+#t 发现1000个数据训练的挺不错，和10000个数据训练的在一个数量级，误差稍稍大一点点。但是100就很不理想，明显是系统误差（即神经网络预测的函数不对），因为如果噪音来自扰动，应该频率很高（如前面所述）。此外，这里的误差量级很大，也足以说明问题。
+
+
+== *更改网络结构的训练*
+
+#t 同理，都使用1000个数据点（产生自白噪音输入），但是一个是用10层，一个是用6层，一个是用2层，看看效果如何。测试效果时，仍用阶跃输入（见 @table-predict 表格的第一行的那个阶跃输入），看看能否跟踪。
+
+
+#figure(
+  table(
+    stroke: oklab(80.74%, 0.118, -0.087, 48.6%)+0.1em,
+    columns: 3,
+    gutter: 0em,
+    inset: 2pt,
+    align: center+horizon,
+    [网络 \ 层数],[响应],[误差],
+    [10],[#image("./images/step_less_result.png")],[#image("./images/step_less_err.png")],
+    [6],[#image("./images/step_6_result.png")],[#image("./images/step_6_err.png")],
+    [2],[#image("./images/step_2_result.png")],[#image("./images/step_2_err.png")],
+
+    ),
+    caption: [串并联结构网络（不同层数）拟合效果]
+)
+
+#t 发现10层数据训练的很不错但6层误差稍大一些，但是仍然在$10^(-4)$量级，基本可以接受。但是当网络仅仅有2层时，不是很理想，从误差的变化频率也可以看出来（和层数多的比变慢了许多），证明误差主要来源不是随机的噪音，而是来源于系统性的（即神经网络预测的函数明显不对），误差量级很大，有$10^(-2)$。
+
 
 = 加入噪声的数据训练出的网络
 
@@ -273,7 +344,7 @@ label_data = [q1_next;q2_next];
     inset: 2pt,
     align: center+horizon,
     [之前的网络],[含噪音数据训练的网络],
-    [#image("./images/compare.png")],[#image("./images/noise_big2.png")],
+    [#image("./images/compare.png",height:20%)],[#image("./images/noise_big2.png",height:20%)],
     ),
     caption: [用带噪音与不带噪音的数据训练的两个网络对比]
 )
@@ -289,7 +360,7 @@ label_data = [q1_next;q2_next];
 
 #t 测试时，请先运行robotarm_param.m文件（使得workspace中有参数的数据）然后即可运行slx文件。运行完成后，运行data_preprocess.m文件即可获得数据集，然后打开nftool导入input_data和label_data两个量即可训练。
 
-#t slx文件中含有两组，一组是串并联，一组是并联（注释），一个网络是无噪声数据训练的，一个是有噪声数据训练的（注释）。
+#t slx文件中含有两组，一组是串并联，一组是并联（注释），一共提供了6个神经网络（分别是不同的训练样本个数训练出来的10层网络，以及用同样的1000个数据训练但层数不同的网络），测试时可以替换模块进去。
 
 #text(red.darken(10%))[#t 如有疑问，请访问 https://github.com/Maythics/Control_simulink.git]
 
